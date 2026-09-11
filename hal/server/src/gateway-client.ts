@@ -148,7 +148,14 @@ export class GatewayClient {
         {
           minProtocol: PROTOCOL,
           maxProtocol: PROTOCOL,
-          client: { id: "hal-bff", version: "0.1.0", platform: process.platform, mode: "operator" },
+          // client.id 與 client.mode 都是**列舉**，不能自訂字串。
+          // 合法 id 見 GATEWAY_CLIENT_IDS，合法 mode 見 GATEWAY_CLIENT_MODES
+          // （openclaw 套件的 dist/client-info-*.mjs）。
+          // 我們是「持有 token、代瀏覽器轉發的後端客戶端」，所以是 gateway-client + backend。
+          // 注意：官方 docs 的 connect 範例（gateway/protocol/handshake.md）寫的是
+          // mode: "operator"，那是 role 的值、不在 mode 列舉裡，照抄會被拒絕 ——
+          // 實機驗證過，錯誤訊息是 "at /client/mode: must be equal to one of the allowed values"。
+          client: { id: "gateway-client", version: "0.1.0", platform: process.platform, mode: "backend" },
           role: "operator",
           scopes: ["operator.read", "operator.write"],
           caps: [],

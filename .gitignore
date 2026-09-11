@@ -23,3 +23,4 @@ hal/test-audio/
 
 # Playwright MCP 的暫存輸出
 .playwright-mcp/
+.local/
