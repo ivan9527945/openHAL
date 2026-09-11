@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# 喚醒詞模型檔：個人帳號下載的 Picovoice 模型，不進版控（見 public/wake/README.md）
+public/wake/*.ppn
+public/wake/*.pv

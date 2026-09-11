@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 750" width="1000" height="750" role="presentation">
+  <!--
+    暫時素材：HAL 9000 風格鏡頭。
+    重點約定：鏡頭中心固定在圖片正中央（500,375），寬高比 4:3。
+    換成正式素材時只要維持這兩件事，hal.css 的光暈定位就不需要改。
+  -->
+  <defs>
+    <radialGradient id="plate" cx="42%" cy="34%" r="78%">
+      <stop offset="0%" stop-color="#2a2b2e"/>
+      <stop offset="60%" stop-color="#151619"/>
+      <stop offset="100%" stop-color="#0a0a0b"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="18%" y1="0%" x2="82%" y2="100%">
+      <stop offset="0%" stop-color="#9ea3a8"/>
+      <stop offset="28%" stop-color="#5c6165"/>
+      <stop offset="52%" stop-color="#c8ccd0"/>
+      <stop offset="76%" stop-color="#4a4e52"/>
+      <stop offset="100%" stop-color="#8d9297"/>
+    </linearGradient>
+    <linearGradient id="ring2" x1="80%" y1="10%" x2="20%" y2="90%">
+      <stop offset="0%" stop-color="#6f7479"/>
+      <stop offset="45%" stop-color="#3a3d40"/>
+      <stop offset="100%" stop-color="#7d8287"/>
+    </linearGradient>
+    <radialGradient id="lens" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1b0708"/>
+      <stop offset="55%" stop-color="#0d0405"/>
+      <stop offset="100%" stop-color="#040404"/>
+    </radialGradient>
+    <radialGradient id="ember" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#5e0f06"/>
+      <stop offset="60%" stop-color="#280602"/>
+      <stop offset="100%" stop-color="#0a0201"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1000" height="750" fill="#000"/>
+  <!-- 面板 -->
+  <rect x="230" y="105" width="540" height="540" rx="34" fill="url(#plate)"/>
+  <rect x="230.5" y="105.5" width="539" height="539" rx="34" fill="none" stroke="#3a3d41" stroke-width="1"/>
+
+  <!-- 鏡頭：同心環 -->
+  <circle cx="500" cy="375" r="212" fill="url(#ring)"/>
+  <circle cx="500" cy="375" r="190" fill="#131416"/>
+  <circle cx="500" cy="375" r="176" fill="url(#ring2)"/>
+  <circle cx="500" cy="375" r="158" fill="#0b0c0d"/>
+  <circle cx="500" cy="375" r="146" fill="url(#lens)"/>
+  <!-- 正中央的紅點位置（光暈會疊在這裡） -->
+  <circle cx="500" cy="375" r="72" fill="url(#ember)"/>
+  <!-- 鏡片反光 -->
+  <ellipse cx="432" cy="300" rx="58" ry="34" fill="#ffffff" opacity="0.05" transform="rotate(-32 432 300)"/>
+  <circle cx="500" cy="375" r="212" fill="none" stroke="#000" stroke-width="2" opacity="0.55"/>
+</svg>

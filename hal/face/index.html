@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <!-- 空 favicon：避免瀏覽器抓不到圖示而顯示文字字母 -->
+    <link rel="icon" href="data:," />
+    <title>HAL</title>
+    <!-- CSS 由 main.ts import，交給 Vite 打包；這裡先鋪一層黑底避免載入瞬間閃白 -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 整頁沒有任何文字：只有一個框、一張圖、一層光暈 -->
+    <div class="hal" id="hal">
+      <div class="hal-frame">
+        <img class="hal-img" alt="" decoding="async" />
+        <div class="glow"></div>
+      </div>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,151 @@
+/* open_HAL — HAL Face 樣式（計劃書 §7.1 / §7.2）
+   整頁只有：純黑底、一張置中等比縮放的 HAL 圖、一層疊在鏡頭上的紅光。 */
+
+:root {
+  /* 素材寬高比。換素材時只要改這兩個數字（和 EYE_IMAGE 路徑）。 */
+  --ar-w: 4;
+  --ar-h: 3;
+  /* 鏡頭中心在「圖片」上的位置，預設正中央。素材若不置中就改這裡。 */
+  --eye-cx: 50%;
+  --eye-cy: 50%;
+  /* 光暈直徑，相對圖片寬度的百分比 */
+  --eye-size: 18%;
+
+  /* 由 eye.ts（listening / speaking）或 CSS animation 控制 */
+  --level: 0.12;
+  --scale: 1;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; background: #000; overflow: hidden; }
+
+body {
+  /* 沒有任何文字，但仍避免使用者長按 / 選取造成的反白與 iOS 點擊高亮 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+.hal {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh; /* 手機瀏覽器工具列變動時不跳動 */
+  background: #000;
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+
+/* 游標隱藏（main.ts：無操作 2 秒） */
+.hal.cursor-hidden, .hal.cursor-hidden * { cursor: none; }
+
+/*
+  ── 光暈定位方案 ───────────────────────────────────────────────────────────
+  計劃書原稿把 .glow 放在 .hal 裡、以 width:18% 定位，但 18% 是相對「.hal 容器」
+  而不是「等比縮放後的圖片」。圖片用 max-width/max-height 收縮後，容器與圖片
+  的實際尺寸幾乎永遠不同（手機直向差很多），光暈就會比鏡頭大一圈、位置也偏。
+
+  這裡改成：用一個和素材同寬高比的 .hal-frame 當定位基準，尺寸用
+      width = min(100vw, 100vh * ar)
+  自己算出「contain」後的結果，圖片 100% 填滿這個框，光暈的百分比因此完全
+  相對於「實際渲染出來的圖片框」。純 CSS、不需要 JS 量測、resize 零成本，
+  手機直向 / 筆電 / 大螢幕橫向都對齊。
+  ────────────────────────────────────────────────────────────────────────── */
+.hal-frame {
+  position: relative;
+  width: min(100vw, calc(100vh * var(--ar-w) / var(--ar-h))); /* 舊瀏覽器 fallback */
+  width: min(100vw, calc(100dvh * var(--ar-w) / var(--ar-h)));
+  aspect-ratio: var(--ar-w) / var(--ar-h);
+}
+
+.hal-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* 與 .hal-frame 同比例，這裡只是保險 */
+  pointer-events: none;
+}
+
+.glow {
+  position: absolute;
+  left: var(--eye-cx);
+  top: var(--eye-cy);
+  width: var(--eye-size);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(var(--scale));
+  opacity: var(--level);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  will-change: opacity, transform;
+  background: radial-gradient(
+    circle,
+    rgba(255, 235, 150, 0.95) 0%,
+    rgba(255, 60, 0, 0.75) 22%,
+    rgba(180, 0, 0, 0) 70%
+  );
+}
+
+/* ── 七種狀態 ───────────────────────────────────────────────────────────── */
+
+/* offline：極暗餘燼，約每 3 秒微弱一亮 */
+[data-state='offline'] .glow { animation: ember 3s ease-in-out infinite; }
+
+/* idle：慢速呼吸，週期約 4 秒 */
+[data-state='idle'] .glow { animation: breathe 4s ease-in-out infinite; }
+
+/* thinking：快速脈動，週期約 0.8 秒 */
+[data-state='thinking'] .glow { animation: breathe 0.8s ease-in-out infinite; }
+
+/* waking：瞬間衝到最亮再回落，約 0.3 秒（一次性） */
+[data-state='waking'] .glow { animation: wake 0.3s cubic-bezier(0.1, 0.8, 0.2, 1) 1 forwards; }
+
+/* error：連閃三下後轉暗（一次性） */
+[data-state='error'] .glow { animation: err 1.5s steps(1, end) 1 forwards; }
+
+/* listening / speaking：不用 CSS animation，由 eye.ts 的 rAF 寫 --level / --scale */
+[data-state='listening'] .glow,
+[data-state='speaking'] .glow { animation: none; }
+
+@keyframes ember {
+  0%, 82%, 100% { opacity: 0.06; transform: translate(-50%, -50%) scale(0.85); }
+  90%           { opacity: 0.2;  transform: translate(-50%, -50%) scale(0.92); }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.28; transform: translate(-50%, -50%) scale(0.94); }
+  50%      { opacity: 0.9;  transform: translate(-50%, -50%) scale(1.08); }
+}
+
+@keyframes wake {
+  0%   { opacity: 0.28; transform: translate(-50%, -50%) scale(0.94); }
+  22%  { opacity: 1;    transform: translate(-50%, -50%) scale(1.3); }
+  100% { opacity: 0.62; transform: translate(-50%, -50%) scale(1.04); }
+}
+
+@keyframes err {
+  0%, 14%, 28%     { opacity: 1;    transform: translate(-50%, -50%) scale(1.16); }
+  7%, 21%, 35%     { opacity: 0.04; transform: translate(-50%, -50%) scale(0.86); }
+  60%              { opacity: 0.1;  transform: translate(-50%, -50%) scale(0.88); }
+  100%             { opacity: 0.03; transform: translate(-50%, -50%) scale(0.82); }
+}
+
+/*
+  ?freeze=1（dev-driver）：給 S5 eye-check 截圖用。
+  animation-play-state:paused 會停在「當下」的時間點，截圖仍不可重現；
+  所以同時把 animation-name 清掉，讓 opacity/transform 回落到被鎖定的
+  --level / --scale，這樣每次截圖都完全一致。
+*/
+[data-freeze='1'] .glow {
+  animation-play-state: paused;
+  animation-name: none;
+  opacity: var(--level);
+  transform: translate(-50%, -50%) scale(var(--scale));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow { animation-duration: 6s; }
+}
