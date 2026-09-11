@@ -1,2 +1,25 @@
+# HAL 音色參考素材：GPL-3.0，僅供試聽比對，不進版控也不進產物（計劃書 §2）
 hal9000-sounds
+
+# macOS 雜物
 .DS_Store
+
+# 依賴與建置產物
+node_modules/
+dist/
+
+# 機密：真實環境變數絕不進版控（範本請看 .env.example）
+.env
+.env.local
+
+# log
+*.log
+
+# 測試音檔：含個人聲音（開發 Skills 規劃 §6）
+hal/test-audio/
+
+# 本機模擬 Railway Volume 的掛載點
+/data
+
+# Playwright MCP 的暫存輸出
+.playwright-mcp/

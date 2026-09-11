@@ -1,0 +1,30 @@
+# 不要進入 Docker build context 的東西。
+# 目的有兩個：縮小 context 讓 Railway 建置更快，以及避免把授權有疑慮或含機密的
+# 檔案帶進映像。
+
+# 版本控制
+.git
+.gitignore
+
+# 文件（計劃書、技術查證等），執行期完全用不到
+docs
+
+# HAL 音色參考素材：GPL-3.0，僅供試聽比對，絕不打包進產物（計劃書 §2）
+hal9000-sounds
+
+# 依賴與建置產物都在容器內重新產生，不要從主機帶進去
+node_modules
+**/node_modules
+dist
+**/dist
+
+# 機密：本機的 .env 一律不得進入映像
+.env
+.env.*
+
+# 測試音檔含個人聲音（Skills 規劃 §6）
+hal/test-audio
+
+# macOS 雜物
+.DS_Store
+**/.DS_Store
