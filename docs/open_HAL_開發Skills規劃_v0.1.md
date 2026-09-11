@@ -78,9 +78,26 @@ smoke test」。但實際上沒那麼單純 —— D4 選了 Overlay，代表我
 
 **流程**：
 1. 查目前釘選版本（Dockerfile 的 `OPENCLAW_VERSION`）與 npm 上的最新版，列出區間內的 release notes。
-2. **重點：比對 config 鍵名。** 把 `hal/config/openclaw.json5` 的每個鍵拿去對照新版的 configuration reference，
-   標出被改名、被移除、新增預設值的項目。特別盯 §8 那幾個：`talk.speechLocale`、`silenceTimeoutMs`、
-   `interruptOnSpeech`、`realtime.brain`、`realtime.consultRouting`、`plugins.allow`。
+2. **重點：比對 config 鍵名。** 把 `hal/config/openclaw.json` 的每個鍵拿去對照新版的 configuration reference
+   （官方 docs 隨 npm 套件附帶，解開釘選版本後在套件根目錄的 `docs/` 底下），標出被改名、被移除、新增
+   預設值的項目。OpenClaw 的設定驗證是嚴格模式 —— **未知鍵會讓 Gateway 直接拒絕啟動**，所以上游改名的
+   代價不只是「安靜失效」，還可能是整個開不起來。特別盯這幾個：
+
+   | 鍵 | 為什麼要盯 |
+   | --- | --- |
+   | `gateway.mode` | 缺了 Gateway **拒絕啟動**（M0 §E23） |
+   | `gateway.bind` | 缺了就是**裸奔** —— 容器內的有效預設是 `auto` → `0.0.0.0`（M0 §D18）；也要確認合法值仍是 bind mode 而非 host 別名 |
+   | `gateway.auth.mode` / `.token` | 認證方式改變會讓 BFF 連不上 |
+   | `gateway.controlUi.basePath` | 改名會讓 `/admin` 代理指向空路徑 |
+   | `talk.silenceTimeoutMs`、`talk.interruptOnSpeech` | 語音體驗的兩個旋鈕 |
+   | `talk.realtime.brain`、`.consultRouting` | D2 的命脈；`consultRouting` 預設是 `provider-direct`，被移除就等於人格漂移 |
+   | `talk.realtime.providers.openai.model` / `.speakerVoice` | 模型與音色清單會隨版本增刪（M0 §C13） |
+   | `agents.defaults.model.primary` | Claude 模型 id 會換代，用 `openclaw models status --probe` 覆核 |
+   | `tools.profile` / `allow` / `deny` / `exec.mode` | 升級可能改變預設 tool policy，屬安全必查項 |
+   | `plugins.allow` | 若已收緊，確認 `openai` 與 `anthropic` 兩個 id 都還在（M0 §D17） |
+   | `update.checkOnStart` | 關版本檢查唯一的鍵（CLI 沒有 `--no-update-check`） |
+
+   （M0 查證後移除：`talk.speechLocale` 已確認對瀏覽器 realtime 無效，種子裡不設，也不必比對。）
 3. 比對 `hal/server/src/rpc-allowlist.ts` 的方法名是否還存在於新版 Gateway protocol。
 4. 改 `OPENCLAW_VERSION`、本機 build、跑 S1 `hal-smoke`。
 5. 跑 S3 `hal-audit`（升級可能改變預設 tool policy，這是安全相關的必查項）。
@@ -102,8 +119,14 @@ smoke test」。但實際上沒那麼單純 —— D4 選了 Overlay，代表我
 - 第一層：無 `HAL_ACCESS_KEY` 時 `/` 是否只回全黑頁；key 是否確實轉成 HttpOnly cookie。
 - 第二層：`rpc-allowlist.ts` 是否只含 Talk 相關方法；**有沒有任何 config / exec / 檔案類方法混進去**；
   BFF 是否預設拒絕未列名方法（而非預設放行）。
-- 第三層：Gateway tool policy 是否確實排除 exec、檔案寫入、瀏覽器控制；`plugins.allow` 收緊時
-  是否還保留內建 `openai` plugin（漏掉會讓 GPT-Live 會話建立失敗）。
+- 第三層：Gateway tool policy 是否確實排除 exec、檔案寫入、瀏覽器控制（`tools.deny` 至少含
+  `group:runtime` / `group:fs` / `group:ui` / `group:nodes`，且 `tools.exec.mode` 為 `deny`、
+  `tools.elevated.enabled` 為 `false`）；`plugins.allow` 收緊時**必須同時含 `openai` 與 `anthropic`**
+  —— 漏掉 `openai` 會讓瀏覽器 realtime 會話建立失敗，漏掉 `anthropic` 會讓 Claude 模型整個不可用。
+- 設定種子與執行中的 `/data/.openclaw/openclaw.json`：`gateway.bind` 必須是 `"loopback"`
+  （**不能靠預設** —— 容器內的有效預設是 `auto` → `0.0.0.0`），且 `gateway.mode` 必須是 `"local"`。
+- BFF 對 `talk.config` 的參數硬化是否確實生效：**不得讓 `includeSecrets: true` 通過**
+  （它會把 scope 升級成 `operator.talk.secrets` 並回傳金鑰）。
 
 *喚醒詞隱私邊界（§9）*
 - `wake.ts` 不得保留音訊 buffer、不得寫入任何持久儲存（localStorage / IndexedDB / 上傳）。
