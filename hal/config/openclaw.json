@@ -1,0 +1,186 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// open_HAL 的 Gateway 設定種子（計劃書 §8）
+//
+// 這份檔案是「種子」，不是執行期設定：hal-server 首次啟動時若發現
+// /data/.openclaw/ 還沒有設定，就把這份內容原樣複製成
+//   /data/.openclaw/openclaw.json
+// 之後 Gateway 讀的是那一份，改這裡不會影響已經初始化過的部署。
+//
+// 檔名為什麼是 .json 而不是 .json5：OpenClaw 的設定檔名固定是 `openclaw.json`，
+// 內容則以 **JSON5** 解析（可寫註解、可留尾逗號）。全套官方 docs 中沒有
+// `openclaw.json5` 這個檔名（M0 §C15）。repo 內的種子與部署目標同名，避免改名失誤。
+//
+// ⚠️ 修改前請先讀 docs/M0_技術查證_v0.1.md。
+//    OpenClaw 的設定驗證是**嚴格模式**：未知鍵、型別錯、值不合法都會讓 Gateway
+//    **拒絕啟動**（根層級唯一例外是 $schema）。所以這裡的每一個鍵都必須是
+//    M0 已查證存在的鍵；沒查證過的鍵一律不要加，有疑慮的就註解掉並寫明原因。
+//
+// Overlay 紀律：這裡只能放上游 OpenClaw 認得的鍵，不得自創鍵名（見 CLAUDE.md §4）。
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  // ── Gateway 本體（M0 §C11 / §D18 / §E23）────────────────────────────────────
+  gateway: {
+    // ⚠️ 必填。沒有這個鍵，Gateway 會直接**拒絕啟動**：官方把「設定檔存在但缺
+    //    gateway.mode」視為毀損設定，而且「refuses to guess local for you」。
+    //    （M0 §E23）
+    mode: "local",
+
+    // 內部 Gateway 的連接埠。優先序：--port → OPENCLAW_GATEWAY_PORT → 這個鍵 → 18789。
+    port: 18789,
+
+    // ⚠️ 安全關鍵。bind 的預設值只有在一般主機上才是 loopback；
+    //    **在偵測到的容器環境內，有效預設是 auto → 0.0.0.0**（M0 §D18）。
+    //    也就是說不寫這一行，Railway 容器裡的 Gateway 就是裸奔的。
+    //    合法值是 bind mode 而不是 host 別名：auto | loopback | lan | tailnet | custom
+    //    （不可以寫 "127.0.0.1"）。
+    //    保險做法：spawn 時再帶一次 `--bind loopback`（CLI flag 優先序最高）。
+    bind: "loopback",
+
+    // 共享密鑰認證。${VAR} 會在載入時以環境變數代換（只匹配大寫變數名）。
+    // 這個 token 只有 hal-server 持有，永遠不進瀏覽器（安全紅線 1）。
+    auth: { mode: "token", token: "${OPENCLAW_GATEWAY_TOKEN}" },
+
+    // Control UI（D5 保留供除錯，由 BFF 以 Basic Auth 保護後反向代理）。
+    // basePath 與 BFF 對外路徑一致，就不必做路徑改寫（M0 §D19）。
+    // 注意：Control UI 會自己開一條**完整的 operator WebSocket**，不受 BFF 的
+    //       RPC 白名單保護 —— Basic Auth 是唯一防線。
+    // 注意：改 basePath 需要重啟 Gateway（enabled 才是 hot-apply）。
+    controlUi: { enabled: true, basePath: "/admin" },
+
+    // 未設 gateway.controlUi.allowedOrigins：非 loopback 的瀏覽器 origin 必須列入，
+    // 否則 Control UI 的 WS connect 會被拒。但經 BFF 轉發後實際送出的 Origin 為何，
+    // M0 §G10 列為待實機驗證，確認後再填入 Railway 網域。
+  },
+
+  // ── 語音（Talk mode）。整個 open_HAL 的核心就靠這一段 ──────────────────────
+  talk: {
+    // 刻意不設 talk.speechLocale。
+    // 它只作用於 **Android / iOS / macOS 的原生語音辨識**與 iOS 系統語音 fallback，
+    // 對瀏覽器 client-owned WebRTC realtime **完全無效**（M0 §C12）。
+    // 留著只會讓人誤以為 D7 的中英切換已經處理好。
+    // D7 的中英切換完全交給 realtime 模型本身（多語模型）＋ 下面的 instructions。
+
+    // 判定使用者說完話的靜默門檻（毫秒）。太短會切斷慢speaker，太長會讓回應變慢。
+    silenceTimeoutMs: 900,
+
+    // 使用者開口時立即打斷 HAL 的發話。
+    // 注意：麥克風的 AEC 必須全開，否則 HAL 會被自己的聲音打斷（計劃書 §7.3）。
+    interruptOnSpeech: true,
+
+    // Realtime（speech-to-speech）供應商設定。
+    realtime: {
+      provider: "openai",
+
+      providers: {
+        openai: {
+          // Realtime 模型。只負責「聽」與「發聲」，不負責思考（見 brain）。
+          // GA 清單：gpt-realtime-2.1（provider 預設）/ gpt-realtime-2.1-mini / gpt-realtime-2。
+          model: "gpt-realtime-2.1",
+
+          // HAL 的音色。GA realtime 的 10 個合法值：
+          //   alloy, ash, ballad, cedar, coral, echo, marin, sage, shimmer, verse
+          // （TTS-only 的 fable / nova / onyx 不可用於 realtime。）
+          // cedar / ash / marin 是候選，M0 要中英兩種語言都試聽再定案（M0 §C13）。
+          // ⚠️ session 開始後不能換音色，換音色必須重建 session。
+          speakerVoice: "cedar",
+        },
+      },
+
+      // 語音模式：完整的 speech-to-speech，而非純轉錄（D1）。
+      mode: "realtime",
+
+      // 傳輸方式。瀏覽器直連供應商的 WebRTC，延遲最低，音訊不經過 Railway
+      // （Railway 不開放 UDP 入站，這條路剛好避開）。
+      transport: "webrtc",
+
+      // D2：HAL 的「大腦」是 OpenClaw 的 Claude Agent，不是 Realtime 模型本身。
+      // talk.client.create 也會強制要求 agent-consult，非此值直接回 INVALID_REQUEST。
+      brain: "agent-consult",
+
+      // D2：每一句話都強制經過 Agent，確保人格與記憶一致。
+      // ⚠️ 這個鍵的預設值是 provider-direct（模型可自行回答），所以**必須明寫**。
+      consultRouting: "force-agent-consult",
+
+      // 給 Realtime 模型的即時指示。人格的完整描述在 hal/workspace-seed/SOUL.md，
+      // 這裡只放語音情境下最關鍵的幾條（長度、語速、D7 語言政策）。
+      instructions: "你是 HAL。語氣冷靜平穩、語速均勻，每次回覆盡量不超過三句。預設使用繁體中文（台灣用語）；當使用者整句改用英文時，就整段改用英文回答，直到對方換回中文為止。同一句話裡不要混用兩種語言；使用者只是夾帶英文技術名詞時，仍然維持原本的語言。",
+    },
+  },
+
+  // ── Agent 的大腦指向 Claude（D2、M0 §C14）──────────────────────────────────
+  agents: {
+    defaults: {
+      // 值的格式是 provider/model，**務必寫出 provider 前綴**（省略 provider 是
+      // 已 deprecated 的相容行為）。
+      // ⚠️ 模型 id 可替換：官方 docs 中同時出現過 anthropic/claude-opus-4-6 與
+      //    anthropic/claude-opus-5，M0 §G3 把「哪一個現行可用」列為待實機驗證，
+      //    請以 `openclaw models status --probe` 的結果為準，需要時改下面兩處。
+      models: { "anthropic/claude-opus-4-6": { alias: "opus" } },
+      model: { primary: "anthropic/claude-opus-4-6" },
+    },
+  },
+
+  // ── Tool policy（計劃書 §9 第三層、M0 §D16 建議寫法）─────────────────────
+  // 沒有「語音專用」的 tool policy：語音 session 沿用它所路由到的那個 agent
+  // session 的一般 tool policy，所以這一段就是語音安全的主要手段。
+  // deny 永遠勝出、大小寫不敏感、支援 * 萬用字元。
+  tools: {
+    // 最小集合起步：minimal 只含 session_status。
+    profile: "minimal",
+
+    // 明確開放的低風險工具（時間 / 網路搜尋 / 記憶讀取）。
+    // 注意 allow 與 alsoAllow 不可在同一個 scope 並存，設定驗證會拒絕。
+    allow: [
+      "session_status",
+      "group:web",      // web_search, x_search, web_fetch
+      "group:memory",   // memory_search, memory_get
+    ],
+
+    // 再加一層明確黑名單當保險（deny 勝出，所以與 allow 並存是安全的）。
+    deny: [
+      "group:runtime",    // exec / bash / process / code_execution
+      "group:fs",         // read / write / edit / apply_patch
+      "group:ui",         // browser / screen / dashboard / terminal / portal / canvas / show_widget
+      "group:nodes",      // nodes / computer
+      "group:automation", // heartbeat_respond / cron / gateway
+      "group:messaging",  // message
+      "group:sessions",
+      "group:plugins",
+    ],
+
+    // tools.exec.mode 是現行偏好的鍵（deny | allowlist | ask | auto | full）。
+    // 舊的 tools.exec.security / tools.exec.ask 是 legacy，混用會被 config patch 拒絕。
+    exec: { mode: "deny" },
+
+    elevated: { enabled: false },
+
+    // 即使 group:fs 已被 deny，仍留這一道保險。
+    fs: { workspaceOnly: true },
+  },
+
+  // ── 其他 ───────────────────────────────────────────────────────────────────
+  // kiosk 裝置關閉啟動時的版本檢查：升級是刻意的動作，不由裝置自己決定。
+  // （預設是 true。CLI 沒有 --no-update-check 這個 flag，只能用這個鍵或
+  //   OPENCLAW_NO_AUTO_UPDATE=1 —— M0 §E20。）
+  update: { checkOnStart: false },
+
+  // plugins.allow 刻意先不設（＝不限制）。M0 §D17 的建議是 M0/M1 先靠 tool policy
+  // 把關，等 M4 再收緊，收緊後必須跑一次完整語音 smoke test —— bundled plugin 有
+  // 59 個且彼此有隱性依賴，一次收太緊很容易讓某個功能靜默消失。
+  //
+  // ⚠️ M4 收緊時，下面兩個 id **缺一不可**：
+  //      openai    —— 少了它，realtime 瀏覽器 session 建立會失敗
+  //                   （"OpenAI realtime browser session broker is unavailable"）
+  //      anthropic —— 少了它，Claude 模型整個不可用，Agent 直接沒有大腦
+  //    （計劃書 v0.1 只寫了 openai，這是 M0 §D17 補上的修正。）
+  //    另外：plugins.allow 是 exclusive allowlist，清單外的 plugin 工具即使
+  //    tools.allow 寫了 "*" 也不會出現；改這個鍵需要重啟 Gateway，非 hot-reload。
+  //
+  // plugins: {
+  //   enabled: true,
+  //   allow: ["openai", "anthropic"],
+  //   deny: [],
+  // },
+
+  // 刻意不設定任何 channels：open_HAL 的唯一輸入是語音，沒有任何聊天通道（計劃書 §1）。
+}
