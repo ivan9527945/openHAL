@@ -1,0 +1,23 @@
+{
+  "name": "open-hal-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "open_HAL BFF：靜態檔、存取控制、RPC 白名單轉發、Gateway 子行程監控",
+  "type": "module",
+  "engines": {
+    "node": ">=24.16.0 <25 || >=26.1.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsc -p tsconfig.json --watch"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.2"
+  }
+}
